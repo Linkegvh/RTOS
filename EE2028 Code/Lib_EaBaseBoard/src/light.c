@@ -154,6 +154,13 @@ void light_init (void)
  *
  * Description:
  *    Enable the ISL29003 Device.
+ * 
+ * Number of bytes sent:
+ *    3 bytes
+ * 
+ *    first byte: the address of I2C2 (slave address)
+ *    second byte: the slave register address as the ADDR_CMD
+ *    third byte: the slave register value as the CMD_ENABLE
  *
  *****************************************************************************/
 void light_enable (void)
@@ -175,6 +182,10 @@ void light_enable (void)
  * Returns:
  *      Read light sensor value (in units of Lux)
  *
+ * Number of bytes sent: 8
+ * Total number of I2C transmissions: 4
+ * 
+ * @note ADDR == address 
  *****************************************************************************/
 uint32_t light_read(void)
 {
@@ -182,8 +193,8 @@ uint32_t light_read(void)
     uint8_t buf[1];
 
     buf[0] = ADDR_LSB_SENSOR;
-    I2CWrite(LIGHT_I2C_ADDR, buf, 1);
-    I2CRead(LIGHT_I2C_ADDR, buf, 1);
+    I2CWrite(LIGHT_I2C_ADDR, buf, 1);   // Giving the slave an address of the slave register
+    I2CRead(LIGHT_I2C_ADDR, buf, 1);    // Asking the slave to send the value in the above slave register address back
 
     data = buf[0];
 

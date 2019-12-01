@@ -20,6 +20,7 @@
 asm_streaming:
 @	write assembly language instructions here
 	// R0 = value, R1 = mean, R2 = reset, R3 = first buffer address, We are not using registers beyond R10
+	// R0 is the input and the location where the return output should be stored as well!
 	push {R4 - R10} @ push away the content from register 4 to 10, so that we can use them without changing the original content inside.
 
 

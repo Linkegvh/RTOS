@@ -1,37 +1,77 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
+/**********************************************
+ * 
+ * Version 1.1
+ * 
+ * Updates includes 
+ * - a ADC voltage level math calculation
+ * - establish a esp32 based wifi because connecting to my own home wifi seems to have some problem
+ * 
+ * ********************************************/
+
+
 /*Put your SSID & Password*/
-const char* ssid = "Lingke @05-163";  // Enter SSID here
-const char* password = "84931801";  //Enter Password here
+const char* ssid = "ESP32";  // Enter SSID here
+const char* password = "12345678";  //Enter Password here
+
+/* Put IP Address details */
+// This could be removed if we are connecting to another wifi.
+IPAddress local_ip(192,168,1,1);
+IPAddress gateway(192,168,1,1);
+IPAddress subnet(255,255,255,0);
 
 /****
  * Creating an instance of the WebServer Class, with the HTTP port being 80
  * ***/
 WebServer server(80);
 
-
 /********************************
  * ADC pin setup
  * As far fetched as the number look like, they are actually adjacent ADC pins
  * ******************************/
 
-const uint8_t ADC_Pin_num = 6;
-const uint8_t ADC_Pin1 [ADC_Pin_num] = {12, 14, 27, 26, 25, 23};
-uint8_t Voltage_levels[ADC_Pin_num];
+const uint8_t ADC_Pin_num = 3;
+const uint8_t ADC_Pin1 [ADC_Pin_num] = {12, 14, 27};
+float calcualted_per_cell_voltage[ADC_Pin_num];
+float calculated_accumulative_voltage [ADC_Pin_num];
 
 uint8_t NUM = 0;
+uint8_t test_NUM = 0;
 
 void setup() {
-    std_setup();
-    WiFi_setup();
-    server_setup();
+    Serial.begin(115200);
+    delay(100);
+    int i = 0;
+    while (i < ADC_Pin_num){
+        calculated_accumulative_voltage[i] = 0;
+        calcualted_per_cell_voltage[i] = 0;
+        i++;
+    }
+
+    // wifi WiFi set up
+    WiFi.softAP(ssid, password);
+    WiFi.softAPConfig(local_ip, gateway, subnet);
+    delay(100);
+
+    // server set up
+    server.on("/", handle_OnConnect);
+    server.onNotFound(handle_NotFound);
+
+    server.begin();
+    Serial.println("HTTP server started");   
 }
 
 void loop() {
     server.handleClient();
-    ADC_read(Voltage_levels);
-    server.send(200, "text/html", SendHTML()); 
+    uint16_t Voltage_reading_raw [ADC_Pin_num]; // ADC pins is 12 bit for ESP32 based board
+
+    ADC_read(Voltage_reading_raw);
+
+    calculation(Voltage_reading_raw, calcualted_per_cell_voltage, calculated_accumulative_voltage);
+
+    //server.send(200, "text/html", SendHTML()); 
     delay(1000);
 }
 /***********************************************************************
@@ -40,12 +80,6 @@ void loop() {
  *
 /**********************************************************************/
 
-// standard set up takes care of setting up serial communication
-// and pin mode for each GPIO and ADC pins. 
-void std_setup(){
-    Serial.begin(115200);
-    delay(100);
-}
 
 void WiFi_setup(){
     Serial.println("Connecting to ");
@@ -63,21 +97,11 @@ void WiFi_setup(){
     Serial.print("Got IP: ");  Serial.println(WiFi.localIP());
 }
 
-void server_setup(){
-    server.on("/", handle_OnConnect);
-    server.onNotFound(handle_NotFound);
-
-    server.begin();
-    Serial.println("HTTP server started");   
-}
-
 void handle_OnConnect() {
   NUM ++;
   Serial.print("Connection Established for the ");
   Serial.print(NUM);
   Serial.println("th time");
-
-  for (int i = 0; i < ADC_Pin_num; i ++) Voltage_levels[i] = 0;
 
   server.send(200, "text/html", SendHTML()); 
 }
@@ -109,10 +133,15 @@ String SendHTML(){
 
     while(i < ADC_Pin_num){
         ptr += "<p>";
-        ptr += i;
+        ptr += i + 1; // starting with 1 instead of 0
         ptr += "th Cell: ";
-        ptr += Voltage_levels[i];
-        ptr += "V </p>\n";
+        ptr += calcualted_per_cell_voltage[i];
+        ptr += "V, ";
+        
+        ptr += "Accumulative voltage: ";
+        ptr += calculated_accumulative_voltage[i];
+        ptr += "V ";
+        ptr += "</p>\n";
         i++;
     }
 
@@ -132,10 +161,47 @@ String SendHTML(){
  * 
  * **********************************************************************/
 
-void ADC_read(uint8_t *Voltage_levels){
+void ADC_read(uint16_t *Voltage_levels){
     int i;
     for (i = 0; i < ADC_Pin_num ; i++){
         Voltage_levels[i] = analogRead(ADC_Pin1[i]);
     }
+    return;
+}
+
+
+/*************************
+ * 
+ * Calculation will update the true per cell voltage of the LiPo battery and also update the true accumulation voltage
+ * of x number cells voltage combined together. 
+ * 
+ * The switch statement handles the different cases of multipler for different LiPo cells as they are all different
+ * 
+ * ***********************/ 
+void calculation(uint16_t * voltage_raw, float * per_cell_vol, float * accum_vol){
+    int i = 0;
+    float temp = 0;
+    while (i < ADC_Pin_num){
+        // the max value for 12 bit is 4096 and for ESP32 ADC pins that means 3.3V
+        temp = ((float) voltage_raw[i] / 4096) * 3.3;
+        
+        switch (i){
+            case 0:
+                accum_vol[i] = (temp * 10) / 7; break;
+            case 1:
+                accum_vol[i] = (temp * 20) / 7; break;
+            case 2:
+                accum_vol[i] = temp * 4; break;
+        }
+        
+        if (i = 0) 
+            per_cell_vol[i] = accum_vol[i];
+        else 
+            per_cell_vol[i] = accum_vol[i] - accum_vol[i - 1];
+        
+        i ++;
+    }
+    test_NUM ++;
+    per_cell_vol[0] = test_NUM;
     return;
 }

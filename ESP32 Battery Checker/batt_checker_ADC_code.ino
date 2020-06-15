@@ -2,7 +2,6 @@ const int ADC_Pin_num = 3;
 const int ADC_Pin1 [ADC_Pin_num] = {12, 14, 27};
 float calcualted_per_cell_voltage[ADC_Pin_num];
 float calculated_accumulative_voltage [ADC_Pin_num];
-int test_NUM = 0;
 
 void setup(){
     Serial.begin(115200);
@@ -58,12 +57,12 @@ void calculation(long * voltage_raw, float * per_cell_vol, float * accum_vol){
             case 0:
                 accum_vol[i] = (temp * 10) / 7; break;
             case 1:
-                accum_vol[i] = (temp * 20) / 7; break;
+                accum_vol[i] = (temp * 10) / 3; break;
             case 2:
-                accum_vol[i] = temp * 4; break;
+                accum_vol[i] = (temp * 10) / 2; break;
         }
         
-        if (i = 0){
+        if (i == 0){
             per_cell_vol[i] = accum_vol[i];
         }else{
             per_cell_vol[i] = accum_vol[i] - accum_vol[i - 1];
@@ -71,7 +70,5 @@ void calculation(long * voltage_raw, float * per_cell_vol, float * accum_vol){
         
         i ++;
     }
-    test_NUM ++;
-    per_cell_vol[0] = test_NUM;
     return;
 }
